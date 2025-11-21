@@ -1,10 +1,26 @@
-import React, { useContext } from "react";
 import { Navigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
+import jwtDecode from "jwt-decode";
 
-const PrivateRoute = ({ children }) => {
-  const { user } = useContext(AuthContext);
-  return user ? children : <Navigate to="/" replace />;
-};
+export default function PrivateRoute({ children }) {
+  const token = localStorage.getItem("token");
 
-export default PrivateRoute;
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  try {
+    const decoded = jwtDecode(token);
+
+    // Si el token expira
+    if (decoded.exp * 1000 < Date.now()) {
+      localStorage.removeItem("token");
+      return <Navigate to="/login" replace />;
+    }
+
+    return children;
+  } catch (error) {
+    // Token manipulado o inválido
+    localStorage.removeItem("token");
+    return <Navigate to="/login" replace />;
+  }
+}

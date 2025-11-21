@@ -1,55 +1,42 @@
-import React, { useEffect, useState, useContext } from "react";
-import API from "../api/api";
-import { AuthContext } from "../context/AuthContext";
-import { toast } from "react-toastify";
+import { useEffect, useState } from "react";
+import { getUsers } from "../api/api";
 
 export default function Dashboard() {
-  const { user } = useContext(AuthContext);
-  const [usuarios, setUsuarios] = useState([]);
+  const [users, setUsers] = useState([]);
 
   useEffect(() => {
-    const fetchUsuarios = async () => {
+    async function loadUsers() {
       try {
-        const res = await API.get("/users"); // ✅ ruta correcta
-        setUsuarios(res.data);
-      } catch (err) {
-        console.error("❌ Error al obtener usuarios:", err);
-        toast.error("Error al cargar los usuarios");
+        const data = await getUsers();
+        setUsers(data);
+      } catch (error) {
+        console.error("Error cargando usuarios:", error);
       }
-    };
-
-    fetchUsuarios();
+    }
+    loadUsers();
   }, []);
 
   return (
-    <div className="p-10">
-      <h1 className="text-4xl font-bold mb-6 text-center">
-        ⚡ Panel de Energía Solar ⚡
-      </h1>
+    <div style={{ padding: "30px" }}>
+      <h1>Dashboard</h1>
+      <h2>Usuarios desde el backend Java 🚀</h2>
 
-      <p className="text-xl text-center mb-8">
-        Bienvenido, <span className="font-semibold">{user?.nombre}</span>
-      </p>
-
-      <div className="bg-white text-black p-6 rounded-lg shadow-lg max-w-2xl mx-auto">
-        <h2 className="text-2xl font-bold mb-4 text-center text-blue-600">
-          Usuarios registrados
-        </h2>
-
-        {usuarios.length > 0 ? (
-          <ul className="space-y-2">
-            {usuarios.map((u) => (
-              <li key={u._id} className="p-2 border rounded">
-                {u.nombre} — {u.email}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-600 text-center">
-            No hay usuarios registrados todavía.
-          </p>
-        )}
-      </div>
+      {users.length === 0 ? (
+        <p>Cargando usuarios...</p>
+      ) : (
+        <pre
+          style={{
+            background: "#222",
+            color: "white",
+            padding: "20px",
+            borderRadius: "10px",
+            marginTop: "20px",
+            overflowX: "auto",
+          }}
+        >
+          {JSON.stringify(users, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }
