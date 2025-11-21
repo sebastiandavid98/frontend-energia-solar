@@ -1,14 +1,35 @@
-import { useContext, useState } from "react";
-import { Link } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { loginUser } from "../api/api";
 
 export default function Login() {
-  const { login } = useContext(AuthContext);
-  const [email, setEmail] = useState("");
+  const navigate = useNavigate();
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+  });
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    login(email);
+    setError("");
+    
+    try {
+      const response = await loginUser(form.email, form.password);
+      
+      if (response.token) {
+        localStorage.setItem("token", response.token);
+        navigate("/");
+      } else {
+        setError("Credenciales incorrectas");
+      }
+    } catch (err) {
+      setError("Error al iniciar sesión. Verifica tus credenciales.");
+    }
   };
 
   return (
@@ -30,10 +51,26 @@ export default function Login() {
               Correo Electrónico
             </label>
             <input
+              name="email"
               type="email"
               placeholder="tu@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
+              value={form.email}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Contraseña
+            </label>
+            <input
+              name="password"
+              type="password"
+              placeholder="••••••••"
+              value={form.password}
+              onChange={handleChange}
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
             />
@@ -46,6 +83,12 @@ export default function Login() {
             Ingresar
           </button>
         </form>
+
+        {error && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 text-center font-medium">{error}</p>
+          </div>
+        )}
 
         <div className="mt-6 text-center">
           <p className="text-gray-600">
