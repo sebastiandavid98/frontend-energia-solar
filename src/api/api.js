@@ -1,8 +1,8 @@
 import axios from "axios";
 
-// URL DEL BACKEND LOCAL
+// URL DEL BACKEND - usa variable de entorno o localhost por defecto
 const API = axios.create({
-  baseURL: "http://localhost:8080/api",
+  baseURL: process.env.REACT_APP_API_URL || "http://localhost:8080/api",
   headers: {
     "Content-Type": "application/json",
   },
