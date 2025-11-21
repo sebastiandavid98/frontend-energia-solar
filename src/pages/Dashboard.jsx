@@ -43,6 +43,16 @@ export default function Dashboard() {
   const [recentActivity, setRecentActivity] = useState([
     { id: Date.now(), text: 'Sistema iniciado', time: new Date() }
   ]);
+  
+  // Chat IA
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [aiMessages, setAiMessages] = useState([
+    { role: 'assistant', text: '¡Hola! Soy tu asistente de energía solar. ¿En qué puedo ayudarte?' }
+  ]);
+  const [aiInput, setAiInput] = useState('');
+  
+  // Método de pago
+  const [paymentMethod, setPaymentMethod] = useState('card');
 
   useEffect(() => {
     loadData();
@@ -68,9 +78,84 @@ export default function Dashboard() {
     if (depositAmount && parseFloat(depositAmount) > 0) {
       const amount = parseFloat(depositAmount);
       setBalance(prev => prev + amount);
+      
+      // Actualizar gráfico
+      const newData = {
+        name: `${chartData.length + 1}`,
+        produccion: amount,
+        consumo: Math.random() * 80 + 40,
+      };
+      setEnergyData(prev => [...prev, newData]);
+      
       setDepositAmount('');
+      setPaymentMethod('card');
       setShowDepositModal(false);
-      alert(`Depósito exitoso: ${amount} kWh`);
+      alert(`✅ Depósito exitoso: ${amount} kWh mediante ${paymentMethod === 'card' ? 'Tarjeta' : paymentMethod === 'paypal' ? 'PayPal' : 'Transferencia'}`);
+    }
+  };
+
+  const handleAIChat = () => {
+    if (!aiInput.trim()) return;
+    
+    // Agregar mensaje del usuario
+    const userMessage = { role: 'user', text: aiInput };
+    setAiMessages(prev => [...prev, userMessage]);
+    
+    // Generar respuesta de IA
+    setTimeout(() => {
+      let response = '';
+      const input = aiInput.toLowerCase();
+      
+      if (input.includes('precio') || input.includes('costo')) {
+        response = `El precio actual es $${price.toFixed(3)} por kWh. ${priceChange > 0 ? 'Ha subido' : 'Ha bajado'} ${Math.abs(priceChange).toFixed(2)}% recientemente. ${priceChange > 0 ? 'Es buen momento para vender.' : 'Es buen momento para comprar.'}`;
+      } else if (input.includes('saldo') || input.includes('balance')) {
+        response = `Tu saldo actual es ${balance.toFixed(2)} kWh, equivalente a $${(balance * price).toFixed(2)} USD. ${balance < 50 ? 'Te recomiendo recargar pronto.' : 'Tienes un buen saldo disponible.'}`;
+      } else if (input.includes('comprar') || input.includes('compra')) {
+        response = `Para comprar energía, ve a la sección "Mercado P2P" y selecciona una oferta, o usa el botón "Nueva Orden" para crear una orden personalizada. Actualmente hay ${marketOrders.filter(o => o.type === 'sell').length} ofertas de venta disponibles.`;
+      } else if (input.includes('vender') || input.includes('venta')) {
+        response = `Para vender tu energía, ve al "Mercado P2P" y busca órdenes de compra, o crea una orden de venta personalizada. El precio promedio de venta es $${price.toFixed(3)} por kWh.`;
+      } else if (input.includes('ganancia') || input.includes('ganar')) {
+        response = `Has ganado $${userStats.gananciaTotal.toFixed(2)} en total. ${userStats.gananciaTotal > 0 ? '¡Excelente trabajo!' : 'Realiza más ventas para aumentar tus ganancias.'} Tus ventas totales son $${userStats.totalVentas.toFixed(2)}.`;
+      } else if (input.includes('recargar') || input.includes('depositar')) {
+        response = `Puedes recargar tu saldo haciendo clic en el botón "+ Recargar" en la tarjeta de Saldo Disponible. Aceptamos tarjeta, PayPal y transferencia bancaria.`;
+      } else if (input.includes('transaccion') || input.includes('historial')) {
+        response = `Has realizado ${orderHistory.length} transacciones. ${userStats.operacionesHoy} de ellas fueron hoy. Puedes ver el historial completo en la sección "Historial de Órdenes Ejecutadas".`;
+      } else {
+        response = `Entiendo tu pregunta sobre "${aiInput}". Puedo ayudarte con: precio actual, saldo, comprar/vender energía, ganancias, recargas y transacciones. ¿Sobre qué te gustaría saber más?`;
+      }
+      
+      setAiMessages(prev => [...prev, { role: 'assistant', text: response }]);
+    }, 500);
+    
+    setAiInput('');
+  };
+
+  const handleCancelOrder = (orderId) => {
+    const order = orderHistory.find(o => o.id === orderId);
+    if (!order) return;
+    
+    if (window.confirm(`¿Estás seguro de cancelar esta ${order.type === 'buy' ? 'compra' : 'venta'} de ${order.amount} kWh?`)) {
+      // Revertir la transacción
+      if (order.type === 'buy') {
+        setBalance(prev => prev - order.amount);
+        setUserStats(prev => ({
+          ...prev,
+          totalCompras: prev.totalCompras - order.total,
+          operacionesHoy: Math.max(0, prev.operacionesHoy - 1)
+        }));
+      } else {
+        setBalance(prev => prev + order.amount);
+        setUserStats(prev => ({
+          ...prev,
+          totalVentas: prev.totalVentas - order.total,
+          gananciaTotal: prev.gananciaTotal - order.total,
+          operacionesHoy: Math.max(0, prev.operacionesHoy - 1)
+        }));
+      }
+      
+      // Eliminar del historial
+      setOrderHistory(prev => prev.filter(o => o.id !== orderId));
+      alert('✅ Transacción cancelada exitosamente');
     }
   };
 
@@ -467,14 +552,20 @@ export default function Dashboard() {
                           <p className="text-white text-sm">{order.timestamp.toLocaleTimeString()}</p>
                         </div>
                       </div>
-                      <div className="mt-3 p-3 bg-slate-800/50 rounded border border-slate-600">
-                        <p className="text-slate-300 text-sm">
+                      <div className="mt-3 p-3 bg-slate-800/50 rounded border border-slate-600 flex justify-between items-center">
+                        <p className="text-slate-300 text-sm flex-1">
                           <span className="font-semibold">Resumen:</span> {order.type === 'buy' ? 'Compraste' : 'Vendiste'} {order.amount.toFixed(2)} kWh 
                           {order.orderType === 'market' 
                             ? ' al precio de mercado' 
                             : ` con precio límite de $${order.price.toFixed(3)}`
                           } por un total de ${order.total.toFixed(2)} USD
                         </p>
+                        <button
+                          onClick={() => handleCancelOrder(order.id)}
+                          className="ml-3 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/50 text-red-400 rounded-lg transition text-sm font-semibold"
+                        >
+                          Cancelar
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -641,6 +732,46 @@ export default function Dashboard() {
                 placeholder="Ej: 150"
                 className="w-full px-4 py-3 bg-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
+            </div>
+
+            {/* Método de pago */}
+            <div className="mb-4">
+              <label className="text-slate-300 text-sm mb-2 block">Método de pago</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setPaymentMethod('card')}
+                  className={`p-3 rounded-lg border-2 transition ${
+                    paymentMethod === 'card'
+                      ? 'border-blue-500 bg-blue-500/20'
+                      : 'border-slate-600 bg-slate-700 hover:border-blue-500/50'
+                  }`}
+                >
+                  <div className="text-2xl mb-1">💳</div>
+                  <div className="text-xs text-white">Tarjeta</div>
+                </button>
+                <button
+                  onClick={() => setPaymentMethod('paypal')}
+                  className={`p-3 rounded-lg border-2 transition ${
+                    paymentMethod === 'paypal'
+                      ? 'border-blue-500 bg-blue-500/20'
+                      : 'border-slate-600 bg-slate-700 hover:border-blue-500/50'
+                  }`}
+                >
+                  <div className="text-2xl mb-1">🅿️</div>
+                  <div className="text-xs text-white">PayPal</div>
+                </button>
+                <button
+                  onClick={() => setPaymentMethod('transfer')}
+                  className={`p-3 rounded-lg border-2 transition ${
+                    paymentMethod === 'transfer'
+                      ? 'border-blue-500 bg-blue-500/20'
+                      : 'border-slate-600 bg-slate-700 hover:border-blue-500/50'
+                  }`}
+                >
+                  <div className="text-2xl mb-1">🏦</div>
+                  <div className="text-xs text-white">Transfer</div>
+                </button>
+              </div>
             </div>
 
             {/* Resumen */}
@@ -851,6 +982,81 @@ export default function Dashboard() {
               >
                 {orderAction === 'buy' ? 'Comprar' : 'Vender'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Botón flotante de IA */}
+      <button
+        onClick={() => setShowAIChat(true)}
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full shadow-lg hover:shadow-xl transition flex items-center justify-center z-40"
+      >
+        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+      </button>
+
+      {/* Modal de Chat IA */}
+      {showAIChat && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl w-full max-w-2xl h-[600px] border border-slate-700 flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-700 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-white font-bold">Asistente IA</h3>
+                  <p className="text-slate-400 text-xs">Pregúntame lo que quieras</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAIChat(false)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {aiMessages.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] rounded-lg p-3 ${
+                    msg.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-200'
+                  }`}>
+                    <p className="text-sm">{msg.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Input */}
+            <div className="p-4 border-t border-slate-700">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={aiInput}
+                  onChange={(e) => setAiInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAIChat()}
+                  placeholder="Pregunta sobre precio, saldo, compras..."
+                  className="flex-1 px-4 py-3 bg-slate-700 text-white rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+                <button
+                  onClick={handleAIChat}
+                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition font-semibold"
+                >
+                  Enviar
+                </button>
+              </div>
             </div>
           </div>
         </div>
