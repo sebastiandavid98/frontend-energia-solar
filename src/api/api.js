@@ -1,8 +1,8 @@
 import axios from "axios";
 
-// URL DEL BACKEND EN RENDER
+// URL DEL BACKEND LOCAL
 const API = axios.create({
-  baseURL: "https://backend-energia-solar.onrender.com/api",
+  baseURL: "http://localhost:8080/api",
   headers: {
     "Content-Type": "application/json",
   },
@@ -19,12 +19,12 @@ API.interceptors.request.use((config) => {
 /*  🔐 AUTH                   */
 /* ========================== */
 export const loginUser = async (email, password) => {
-  const res = await API.post("/users/login", { email, password });
+  const res = await API.post("/auth/login", { email, password });
   return res.data;
 };
 
 export const registerUser = async (formData) => {
-  const res = await API.post("/users/register", formData);
+  const res = await API.post("/auth/register", formData);
   return res.data;
 };
 
